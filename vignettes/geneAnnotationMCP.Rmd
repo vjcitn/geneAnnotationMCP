@@ -1,0 +1,165 @@
+---
+title: "geneAnnotationMCP: driving LLM interaction to deterministic gene annotation"
+author: "Vincent J. Carey, stvjc at channing.harvard.edu"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+vignette: >
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteIndexEntry{
+  %\VignetteEncoding{UTF-8}
+output:
+  BiocStyle::html_document:
+    highlight: pygments
+    number_sections: yes
+    theme: united
+    toc: yes
+---
+
+# Example 1
+
+This is for a first draft.  An iteration was taken with two tool calls,
+evidently to simplify the syntax of tool outputs.  One could introduce
+prompt enhancement to avoid wrapping scalars as JSON, or do server-side
+sanitization to avoid this.  So far the system seems capable of recovery.
+
+```
+> ch$chat("What human genes are associated with regulation of mesenchymal cell proliferation?")
+
+◯ [tool call] fn_go_to_genes(go_id = "[\"GO:0010464\"]", max_genes = "[50]")
+● #> {"jsonrpc":"2.0","id":4,"error":{"code":-32603,"message":"'[\"GO:0010464\"]' is not a valid GO ID."}}
+
+◯ [tool call] fn_go_to_genes(go_id = "GO:0010464", max_genes = 50L)
+● #> {"jsonrpc":"2.0","id":5,"result":{"content":[{"type":"text","text":"Genes annotated to GO:0010464 (regulation…
+Based on the gene ontology annotation, here are the human genes associated with regulation of mesenchymal cell 
+proliferation (GO:0010464):
+
+1. **BMP4** (Entrez: 652) [IDA]
+2. **CHRD** (Entrez: 8646) [TAS]
+3. **CTNNBIP1** (Entrez: 56998) [IDA]
+4. **FGFR2** (Entrez: 2263) [ISS]
+5. **ISL1** (Entrez: 3670) [IEA]
+6. **LRP5** (Entrez: 4041) [IMP]
+7. **MYC** (Entrez: 4609) [IDA]
+8. **NFIB** (Entrez: 4781) [IDA]
+9. **PDGFA** (Entrez: 5154) [TAS]
+10. **PHF14** (Entrez: 9678) [ISS]
+11. **SHH** (Entrez: 6469) [ISS]
+12. **SOX9** (Entrez: 6662) [IBA]
+13. **STAT1** (Entrez: 6772) [ISS]
+14. **TBX1** (Entrez: 6899) [IBA]
+15. **TGFBR2** (Entrez: 7048) [IEA]
+16. **WNT5A** (Entrez: 7474) [IEP]
+
+These genes are involved in various aspects of mesenchymal cell proliferation regulation, including signaling pathways 
+(BMP, Wnt, TGF-beta), transcription factors (MYC, SOX9, TBX1), growth factors (PDGF, FGF), and key regulatory molecules
+(CTNNBIP1, LRP5). The evidence codes indicate the type of experimental support for each annotation (IDA = Inferred from
+Direct Assay, TAS = Traceable Author Statement, etc.).
+```
+
+# Example 2
+
+```
+> ch$chat("What human genes are associated with positive regulation of immunoglobulin production?")
+
+◯ [tool call] fn_search_go_terms(query = "positive regulation of immunoglobulin production", ...)
+● #> {"jsonrpc":"2.0","id":6,"result":{"content":[{"type":"text","text":"GO term search for 'positive regulation o…
+
+◯ [tool call] fn_go_to_genes(go_id = "[\"GO:0002639\"]", max_genes = "[50]")
+● #> {"jsonrpc":"2.0","id":7,"error":{"code":-32603,"message":"'[\"GO:0002639\"]' is not a valid GO ID."}}
+
+◯ [tool call] fn_go_to_genes(go_id = "[\"GO:0002639\"]", max_genes = "[50]")
+● #> {"jsonrpc":"2.0","id":8,"error":{"code":-32603,"message":"'[\"GO:0002639\"]' is not a valid GO ID."}}
+
+◯ [tool call] fn_go_to_genes(go_id = "GO:0002639", max_genes = 50L)
+● #> {"jsonrpc":"2.0","id":9,"result":{"content":[{"type":"text","text":"Genes annotated to GO:0002639 (positive r…
+Here are the human genes associated with positive regulation of immunoglobulin production (GO:0002639):
+
+1. **BTK** (Entrez: 695) [IEA]
+2. **C17orf99** (Entrez: 100141515) [IEA]
+3. **CD86** (Entrez: 942) [IEA]
+4. **CLCF1** (Entrez: 23529) [IEA]
+5. **DNAJB9** (Entrez: 4189) [IEA]
+6. **EPHB2** (Entrez: 2048) [IEA]
+7. **GALNT2** (Entrez: 2590) [NAS]
+8. **GPI** (Entrez: 2821) [IDA]
+9. **HLA-E** (Entrez: 3133) [IEA]
+10. **HMCES** (Entrez: 56941) [IEA]
+11. **IL10** (Entrez: 3586) [IDA]
+12. **IL13** (Entrez: 3596) [IEA]
+13. **IL2** (Entrez: 3558) [IEA]
+14. **IL21** (Entrez: 59067) [IBA]
+15. **IL33** (Entrez: 90865) [IMP]
+16. **IL4** (Entrez: 3565) [IDA]
+17. **IL5** (Entrez: 3567) [IEA]
+18. **IL6** (Entrez: 3569) [IDA]
+19. **KMT5B** (Entrez: 51111) [IEA]
+20. **KMT5C** (Entrez: 84787) [IEA]
+21. **MAD2L2** (Entrez: 10459) [IDA]
+22. **MLH1** (Entrez: 4292) [IEA]
+23. **MSH2** (Entrez: 4436) [IEA]
+24. **MZB1** (Entrez: 51237) [IEA]
+25. **PAXIP1** (Entrez: 22976) [IEA]
+26. **PHB1** (Entrez: 5245) [IDA]
+27. **PHB2** (Entrez: 11331) [IDA]
+28. **PMS2** (Entrez: 5395) [IEA]
+29. **PTPRC** (Entrez: 5788) [IGI]
+30. **RBP4** (Entrez: 5950) [IEA]
+31. **RIF1** (Entrez: 55183) [IEA]
+32. **SASH3** (Entrez: 54440) [IBA]
+33. **SHLD1** (Entrez: 149840) [NAS]
+34. **SHLD2** (Entrez: 54537) [NAS]
+35. **SHLD3** (Entrez: 112441434) [NAS]
+36. **STX4** (Entrez: 6810) [IBA]
+37. **TFRC** (Entrez: 7037) [IEA]
+38. **TGFB1** (Entrez: 7040) [IEA]
+39. **TLR9** (Entrez: 54106) [IEA]
+40. **TNF** (Entrez: 7124) [IDA]
+41. **TNFRSF4** (Entrez: 7293) [ISS]
+42. **TNFSF13** (Entrez: 8741) [IBA]
+43. **TNFSF4** (Entrez: 7292) [ISS]
+44. **TP53BP1** (Entrez: 7158) [IBA]
+45. **XBP1** (Entrez: 7494) [IDA]
+46. **XCL1** (Entrez: 6375) [IDA]
+
+These genes are involved in various aspects of immunoglobulin production regulation, including signaling pathways, 
+transcription factors, cytokines, and immune response molecules. The evidence codes indicate the type of experimental 
+support for each annotation (IDA = Inferred from Direct Assay, IEA = Inferred from Electronic Annotation, etc.).
+> 
+```
+
+# Session information
+
+
+```
+> sessionInfo()
+R version 4.6.0 alpha (2026-03-30 r89743)
+Platform: aarch64-apple-darwin23
+Running under: macOS Sequoia 15.7.4
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/4.6/Resources/lib/libRblas.0.dylib 
+LAPACK: /Library/Frameworks/R.framework/Versions/4.6/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.1
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+time zone: America/New_York
+tzcode source: internal
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] mcptools_0.2.1 ellmer_0.4.0   devtools_2.5.0 usethis_3.2.1  rmarkdown_2.31
+
+loaded via a namespace (and not attached):
+ [1] jsonlite_2.0.0    compiler_4.6.0    promises_1.5.0    Rcpp_1.1.1       
+ [5] later_1.4.8       fastmap_1.2.0     R6_2.6.1          curl_7.0.0       
+ [9] httr2_1.2.2       knitr_1.51        rlang_1.1.7       cachem_1.1.0     
+[13] xfun_0.57         fs_2.0.1          S7_0.2.1          pkgload_1.5.0    
+[17] otel_0.2.0        memoise_2.0.1     cli_3.6.5         withr_3.0.2      
+[21] magrittr_2.0.4    ps_1.9.1          digest_0.6.39     processx_3.8.6   
+[25] rappdirs_0.3.4    lifecycle_1.0.5   coro_1.1.0        vctrs_0.7.2      
+[29] startup_0.23.0    evaluate_1.0.5    glue_1.8.0        sessioninfo_1.2.3
+[33] pkgbuild_1.4.8    purrr_1.2.1       tools_4.6.0       ellipsis_0.3.2   
+[37] htmltools_0.5.9  
+```
