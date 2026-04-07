@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "gene-annotation": {
+      "command": "/usr/local/bin/Rscript",
+      "args": ["--vanilla", "-e", "geneAnnotationMCP::gene_annotation_mcp_server()"]
+    }
+  }
+}
+
