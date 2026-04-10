@@ -27,3 +27,29 @@ NULL
     stop(sprintf("Symbol '%s' not found in org.Hs.eg.db.", id))
   valid[[1L]]
 }
+
+
+#' Sanitize a scalar argument that an LLM may have JSON-array-wrapped.
+#' e.g. '["GO:0010464"]' -> "GO:0010464"
+#'      "[50]"           -> "50"
+.sanitize_scalar <- function(x) {
+  if (!is.character(x) || length(x) != 1) return(x)
+  x <- trimws(x)
+  parsed <- tryCatch(jsonlite::fromJSON(x), error = function(e) x)
+  if (length(parsed) == 1) return(as.character(parsed))
+  x  # return original if parse yields unexpected length
+}
+
+#' Validate that a string is a syntactically and ontologically valid GO ID.
+#' Returns TRUE only if the ID matches GO:XXXXXXX and exists in GO.db.
+.is_valid_go_id <- function(go_id) {
+  if (!grepl("^GO:\\d{7}$", go_id)) return(FALSE)
+  go_id %in% AnnotationDbi::keys(GO.db, keytype = "GOID")
+}
+
+#' Uniform negative-result list returned when inputs are nonsensical.
+.na_result <- function(message) {
+  list(result = NA_character_, message = message)
+}
+
+

@@ -138,10 +138,22 @@ tool_go_to_genes <- ellmer::tool(
   go_id     = ellmer::type_string(
     "A GO ID, e.g. 'GO:0006915' (apoptotic process)."
   ),
-  max_genes = ellmer::type_integer(
-    "Maximum number of genes to return. Defaults to 50."
+  max_genes = ellmer::type_string(
+    "Maximum number of genes to return. Defaults to 50. Pass as a plain integer string, e.g. '50'."
   )
 )
+#tool_go_to_genes <- ellmer::tool(
+#  fn_go_to_genes,
+#  "Find human genes annotated to a GO term (including annotations inherited
+#   through child terms via the transitive closure) using org.Hs.eg.db. Returns
+#   gene symbol, Entrez ID, and evidence code.",
+#  go_id     = ellmer::type_string(
+#    "A GO ID, e.g. 'GO:0006915' (apoptotic process)."
+#  ),
+#  max_genes = ellmer::type_integer(
+#    "Maximum number of genes to return. Defaults to 50."
+#  )
+#)
 
 # ── compare_gene_go ───────────────────────────────────────────────────────────
 
