@@ -14,16 +14,16 @@ fn_gene_info <- function(gene_id) {
   ))
   if (nrow(res) == 0L) stop(sprintf("No annotation found for Entrez ID %s.", entrez))
   ensembl_ids <- paste(unique(stats::na.omit(res$ENSEMBL)), collapse = ", ")
-  if (!nzchar(ensembl_ids)) ensembl_ids <- "NA"
+  if (!nzchar(ensembl_ids)) ensembl_ids <- NA_character_
   r <- res[1L, ]
-  paste(c(
-    sprintf("Symbol:      %s", r$SYMBOL    %||% "NA"),
-    sprintf("Entrez ID:   %s", r$ENTREZID  %||% "NA"),
-    sprintf("Full name:   %s", r$GENENAME  %||% "NA"),
-    sprintf("Chromosome:  %s", r$CHR       %||% "NA"),
-    sprintf("Cytoband:    %s", r$MAP       %||% "NA"),
-    sprintf("Ensembl IDs: %s", ensembl_ids)
-  ), collapse = "\n")
+  list(
+    symbol      = r$SYMBOL   %||% NA_character_,
+    entrez_id   = r$ENTREZID %||% NA_character_,
+    full_name   = r$GENENAME %||% NA_character_,
+    chromosome  = r$CHR      %||% NA_character_,
+    cytoband    = r$MAP      %||% NA_character_,
+    ensembl_ids = ensembl_ids
+  )
 }
 
 #' MCP tool: look up basic annotation for a human gene
@@ -36,11 +36,14 @@ fn_gene_info <- function(gene_id) {
 #' @export
 tool_gene_info <- ellmer::tool(
   fn_gene_info,
-  "Return basic annotation (symbol, full name, Entrez ID, Ensembl IDs,
-   chromosome, cytoband) for a human gene. gene_id can be a gene symbol
-   (e.g. 'TP53') or a numeric Entrez ID (e.g. '7157').",
-  gene_id = ellmer::type_string(
-    "Gene symbol such as 'TP53' or 'BRCA1', or a numeric Entrez ID such as '7157'."
+  description = "Return basic annotation for a human gene. gene_id can be a gene symbol
+   (e.g. 'TP53') or a numeric Entrez ID (e.g. '7157'). Returns a structured
+   object with fields: symbol, entrez_id, full_name, chromosome, cytoband,
+   ensembl_ids.",
+  arguments = list(
+    gene_id = ellmer::type_string(
+      "Gene symbol such as 'TP53' or 'BRCA1', or a numeric Entrez ID such as '7157'."
+    )
   )
 )
 
@@ -55,11 +58,13 @@ fn_symbol_to_entrez <- function(symbols) {
     columns = c("ENTREZID", "SYMBOL"),
     keytype = "SYMBOL"
   ))
-  if (nrow(res) == 0L) return("No matches found.")
-  paste(
-    sprintf("%s -> %s", res$SYMBOL,
-            ifelse(is.na(res$ENTREZID), "(not found)", res$ENTREZID)),
-    collapse = "\n"
+  if (nrow(res) == 0L)
+    return(list(mappings = list()))
+  list(
+    mappings = lapply(seq_len(nrow(res)), function(i) list(
+      symbol    = res$SYMBOL[[i]],
+      entrez_id = if (is.na(res$ENTREZID[[i]])) NA_character_ else res$ENTREZID[[i]]
+    ))
   )
 }
 
@@ -68,10 +73,14 @@ fn_symbol_to_entrez <- function(symbols) {
 #' @export
 tool_symbol_to_entrez <- ellmer::tool(
   fn_symbol_to_entrez,
-  "Convert one or more human gene symbols to NCBI Entrez Gene IDs using
-   org.Hs.eg.db. Accepts a comma- or semicolon-separated list of symbols.",
-  symbols = ellmer::type_string(
-    "One or more gene symbols separated by commas or semicolons, e.g. 'TP53, BRCA1, EGFR'."
+  description = "Convert one or more human gene symbols to NCBI Entrez Gene IDs using
+   org.Hs.eg.db. Returns a structured object with a 'mappings' array; each
+   entry has fields 'symbol' and 'entrez_id'. Accepts a comma- or
+   semicolon-separated list of symbols.",
+  arguments = list(
+    symbols = ellmer::type_string(
+      "One or more gene symbols separated by commas or semicolons, e.g. 'TP53, BRCA1, EGFR'."
+    )
   )
 )
 
@@ -86,12 +95,14 @@ fn_entrez_to_symbol <- function(entrez_ids) {
     columns = c("SYMBOL", "GENENAME"),
     keytype = "ENTREZID"
   ))
-  if (nrow(res) == 0L) return("No matches found.")
-  paste(
-    sprintf("%s -> %s (%s)", res$ENTREZID,
-            ifelse(is.na(res$SYMBOL),   "(not found)", res$SYMBOL),
-            ifelse(is.na(res$GENENAME), "",            res$GENENAME)),
-    collapse = "\n"
+  if (nrow(res) == 0L)
+    return(list(mappings = list()))
+  list(
+    mappings = lapply(seq_len(nrow(res)), function(i) list(
+      entrez_id = res$ENTREZID[[i]],
+      symbol    = if (is.na(res$SYMBOL[[i]]))   NA_character_ else res$SYMBOL[[i]],
+      gene_name = if (is.na(res$GENENAME[[i]])) NA_character_ else res$GENENAME[[i]]
+    ))
   )
 }
 
@@ -100,9 +111,13 @@ fn_entrez_to_symbol <- function(entrez_ids) {
 #' @export
 tool_entrez_to_symbol <- ellmer::tool(
   fn_entrez_to_symbol,
-  "Convert one or more NCBI Entrez Gene IDs to official gene symbols and
-   full gene names using org.Hs.eg.db.",
-  entrez_ids = ellmer::type_string(
-    "One or more Entrez Gene IDs separated by commas or semicolons, e.g. '7157, 672, 1956'."
+  description = "Convert one or more NCBI Entrez Gene IDs to official gene symbols and
+   full gene names using org.Hs.eg.db. Returns a structured object with a
+   'mappings' array; each entry has fields 'entrez_id', 'symbol', and
+   'gene_name'.",
+  arguments = list(
+    entrez_ids = ellmer::type_string(
+      "One or more Entrez Gene IDs separated by commas or semicolons, e.g. '7157, 672, 1956'."
+    )
   )
 )

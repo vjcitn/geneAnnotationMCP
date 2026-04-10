@@ -33,25 +33,25 @@ fn_search_go_terms <- function(query, ontology = "ALL", max_results = 20L) {
   total      <- nrow(hits)
 
   if (total == 0L)
-    return(sprintf(
-      "No GO terms matched '%s' (ontology=%s). Try broader keywords or use search_go_terms_ols().",
-      query, ont_arg
-    ))
+    return(list(query = query, ontology = ont_arg, total = 0L, results = list()))
 
   ord  <- order(-hits_score, hits$TERM)
   hits <- hits[ord, ]
   if (nrow(hits) > max_results) hits <- hits[seq_len(max_results), ]
 
-  lines <- sprintf(
-    "[%s] %s (%s)\n  %s",
-    hits$ONTOLOGY, hits$GOID, hits$TERM,
-    ifelse(is.na(hits$DEFINITION), "(no definition)",
-           substr(hits$DEFINITION, 1L, 140L))
-  )
-  paste0(
-    sprintf("GO term search for '%s' (ontology=%s) — %d of %d results:\n\n",
-            query, ont_arg, nrow(hits), total),
-    paste(lines, collapse = "\n\n")
+  results <- lapply(seq_len(nrow(hits)), function(i) list(
+    go_id      = hits$GOID[[i]],
+    ontology   = hits$ONTOLOGY[[i]],
+    term       = hits$TERM[[i]],
+    definition = if (is.na(hits$DEFINITION[[i]])) NA_character_
+                 else substr(hits$DEFINITION[[i]], 1L, 200L)
+  ))
+
+  list(
+    query    = query,
+    ontology = ont_arg,
+    total    = total,
+    results  = results
   )
 }
 
@@ -64,18 +64,21 @@ fn_search_go_terms <- function(query, ontology = "ALL", max_results = 20L) {
 #' @export
 tool_search_go_terms <- ellmer::tool(
   fn_search_go_terms,
-  "Search for Gene Ontology terms matching a keyword or phrase by grepping
+  description = "Search for Gene Ontology terms matching a keyword or phrase by grepping
    term names and definitions in the local GO.db database. Works offline.
-   Term-name matches are ranked above definition-only matches. Use
-   search_go_terms_ols() for fuzzy or synonym-aware search.",
-  query       = ellmer::type_string(
-    "A keyword or phrase, e.g. 'apoptosis', 'kinase activity', 'DNA damage response'."
-  ),
-  ontology    = ellmer::type_string(
-    "Restrict to: 'BP', 'MF', 'CC', or 'ALL' (default)."
-  ),
-  max_results = ellmer::type_integer(
-    "Maximum GO terms to return. Defaults to 20."
+   Returns a structured object with query, ontology, total match count, and a
+   'results' array. Each result has go_id, ontology, term, and definition fields.
+   Term-name matches are ranked above definition-only matches.",
+  arguments = list(
+    query       = ellmer::type_string(
+      "A keyword or phrase, e.g. 'apoptosis', 'kinase activity', 'DNA damage response'."
+    ),
+    ontology    = ellmer::type_string(
+      "Restrict to: 'BP', 'MF', 'CC', or 'ALL' (default)."
+    ),
+    max_results = ellmer::type_integer(
+      "Maximum GO terms to return. Defaults to 20."
+    )
   )
 )
 
@@ -109,16 +112,13 @@ fn_search_go_terms_ols <- function(query, ontology = "ALL", max_results = 20L) {
 
   docs <- result$response$docs
   if (is.null(docs) || nrow(docs) == 0L)
-    return(sprintf(
-      "OLS4 returned no GO matches for '%s'. Try different keywords or use search_go_terms().",
-      query
-    ))
+    return(list(query = query, ontology = ont_arg, total = 0L, results = list()))
 
   # Keep only well-formed GO IDs
   valid <- !is.na(docs$obo_id) & grepl("^GO:[0-9]{7}$", docs$obo_id)
   docs  <- docs[valid, , drop = FALSE]
   if (nrow(docs) == 0L)
-    return(sprintf("OLS4 results for '%s' contained no valid GO IDs.", query))
+    return(list(query = query, ontology = ont_arg, total = 0L, results = list()))
 
   # Enrich with namespace from local GO.db (authoritative, fast)
   ns_tbl  <- suppressMessages(AnnotationDbi::select(
@@ -133,36 +133,34 @@ fn_search_go_terms_ols <- function(query, ontology = "ALL", max_results = 20L) {
   if (ont_arg != "ALL") {
     docs <- docs[!is.na(docs$ns) & docs$ns == ont_arg, , drop = FALSE]
     if (nrow(docs) == 0L)
-      return(sprintf(
-        "OLS4 found GO results for '%s' but none were in the '%s' namespace.",
-        query, ont_arg
-      ))
+      return(list(query = query, ontology = ont_arg, total = 0L, results = list()))
   }
 
   total_hits <- result$response$numFound
   if (nrow(docs) > max_results) docs <- docs[seq_len(max_results), ]
 
   fmt_desc <- function(d) {
-    if (is.null(d) || (length(d) == 1L && is.na(d))) return("(no definition)")
+    if (is.null(d) || (length(d) == 1L && is.na(d))) return(NA_character_)
     if (is.list(d)) d <- unlist(d)
-    substr(paste(d, collapse = " "), 1L, 140L)
+    substr(paste(d, collapse = " "), 1L, 200L)
   }
 
-  lines <- vapply(seq_len(nrow(docs)), function(i) {
+  results <- lapply(seq_len(nrow(docs)), function(i) {
     row  <- docs[i, ]
-    desc <- if ("description" %in% names(docs)) fmt_desc(docs$description[[i]])
-            else "(no definition)"
-    sprintf("[%s] %s (%s)\n  %s",
-            if (!is.na(row$ns)) row$ns else "?",
-            row$obo_id,
-            row$label %||% "unknown",
-            desc)
-  }, character(1L))
+    list(
+      go_id       = row$obo_id,
+      ontology    = if (!is.na(row$ns)) row$ns else NA_character_,
+      term        = row$label %||% NA_character_,
+      description = if ("description" %in% names(docs)) fmt_desc(docs$description[[i]])
+                    else NA_character_
+    )
+  })
 
-  paste0(
-    sprintf("OLS4 GO search for '%s' (ontology=%s) — showing %d of %d total hits:\n\n",
-            query, ont_arg, nrow(docs), total_hits),
-    paste(lines, collapse = "\n\n")
+  list(
+    query    = query,
+    ontology = ont_arg,
+    total    = total_hits,
+    results  = results
   )
 }
 
@@ -175,18 +173,21 @@ fn_search_go_terms_ols <- function(query, ontology = "ALL", max_results = 20L) {
 #' @export
 tool_search_go_terms_ols <- ellmer::tool(
   fn_search_go_terms_ols,
-  "Search the EBI Ontology Lookup Service (OLS4) for GO terms matching a
-   natural language description. Uses BM25 ranking with synonym expansion,
-   handling paraphrased queries better than the local grep-based search.
-   Requires network access. Use search_go_terms() for offline keyword search.",
-  query       = ellmer::type_string(
-    "Natural language phrase, e.g. 'programmed cell death', 'chromatin remodeling',
-     'response to oxidative stress', 'protein folding in ER'."
-  ),
-  ontology    = ellmer::type_string(
-    "Restrict results to: 'BP', 'MF', 'CC', or 'ALL' (default)."
-  ),
-  max_results = ellmer::type_integer(
-    "Maximum GO terms to return. Defaults to 20."
+  description = "Search the EBI Ontology Lookup Service (OLS4) for GO terms matching a
+   natural language description. Uses BM25 ranking with synonym expansion.
+   Returns a structured object with query, ontology, total match count, and a
+   'results' array. Each result has go_id, ontology, term, and description
+   fields. Requires network access.",
+  arguments = list(
+    query       = ellmer::type_string(
+      "Natural language phrase, e.g. 'programmed cell death', 'chromatin remodeling',
+       'response to oxidative stress', 'protein folding in ER'."
+    ),
+    ontology    = ellmer::type_string(
+      "Restrict results to: 'BP', 'MF', 'CC', or 'ALL' (default)."
+    ),
+    max_results = ellmer::type_integer(
+      "Maximum GO terms to return. Defaults to 20."
+    )
   )
 )
