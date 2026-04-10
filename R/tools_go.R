@@ -20,8 +20,12 @@ fn_gene_go_terms <- function(gene_id, ontology = "ALL") {
   }
 
   if (nrow(res) == 0L)
-    return(list(gene_id = gene_id, entrez_id = entrez, ontology = ont_arg,
-                annotations = list()))
+    return(list(
+      gene_id     = gene_id,
+      entrez_id   = entrez,
+      ontology    = ont_arg,
+      annotations = list()
+    ))
 
   go_ids <- unique(res$GO)
   terms  <- suppressMessages(AnnotationDbi::select(
