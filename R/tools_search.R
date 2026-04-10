@@ -33,25 +33,20 @@ fn_search_go_terms <- function(query, ontology = "ALL", max_results = 20L) {
   total      <- nrow(hits)
 
   if (total == 0L)
-    return(sprintf(
-      "No GO terms matched '%s' (ontology=%s). Try broader keywords or use search_go_terms_ols().",
-      query, ont_arg
-    ))
+    return(data.frame(ontology = character(), go_id = character(),
+                      term = character(), definition = character(),
+                      stringsAsFactors = FALSE))
 
   ord  <- order(-hits_score, hits$TERM)
   hits <- hits[ord, ]
   if (nrow(hits) > max_results) hits <- hits[seq_len(max_results), ]
 
-  lines <- sprintf(
-    "[%s] %s (%s)\n  %s",
-    hits$ONTOLOGY, hits$GOID, hits$TERM,
-    ifelse(is.na(hits$DEFINITION), "(no definition)",
-           substr(hits$DEFINITION, 1L, 140L))
-  )
-  paste0(
-    sprintf("GO term search for '%s' (ontology=%s) — %d of %d results:\n\n",
-            query, ont_arg, nrow(hits), total),
-    paste(lines, collapse = "\n\n")
+  data.frame(
+    ontology   = hits$ONTOLOGY,
+    go_id      = hits$GOID,
+    term       = hits$TERM,
+    definition = hits$DEFINITION,
+    stringsAsFactors = FALSE
   )
 }
 
@@ -66,8 +61,9 @@ tool_search_go_terms <- ellmer::tool(
   fn_search_go_terms,
   "Search for Gene Ontology terms matching a keyword or phrase by grepping
    term names and definitions in the local GO.db database. Works offline.
-   Term-name matches are ranked above definition-only matches. Use
-   search_go_terms_ols() for fuzzy or synonym-aware search.",
+   Term-name matches are ranked above definition-only matches. Returns a
+   data frame with columns 'ontology', 'go_id', 'term', and 'definition'.
+   Use search_go_terms_ols() for fuzzy or synonym-aware search.",
   query       = ellmer::type_string(
     "A keyword or phrase, e.g. 'apoptosis', 'kinase activity', 'DNA damage response'."
   ),
@@ -109,16 +105,17 @@ fn_search_go_terms_ols <- function(query, ontology = "ALL", max_results = 20L) {
 
   docs <- result$response$docs
   if (is.null(docs) || nrow(docs) == 0L)
-    return(sprintf(
-      "OLS4 returned no GO matches for '%s'. Try different keywords or use search_go_terms().",
-      query
-    ))
+    return(data.frame(ontology = character(), go_id = character(),
+                      term = character(), description = character(),
+                      stringsAsFactors = FALSE))
 
   # Keep only well-formed GO IDs
   valid <- !is.na(docs$obo_id) & grepl("^GO:[0-9]{7}$", docs$obo_id)
   docs  <- docs[valid, , drop = FALSE]
   if (nrow(docs) == 0L)
-    return(sprintf("OLS4 results for '%s' contained no valid GO IDs.", query))
+    return(data.frame(ontology = character(), go_id = character(),
+                      term = character(), description = character(),
+                      stringsAsFactors = FALSE))
 
   # Enrich with namespace from local GO.db (authoritative, fast)
   ns_tbl  <- suppressMessages(AnnotationDbi::select(
@@ -133,36 +130,31 @@ fn_search_go_terms_ols <- function(query, ontology = "ALL", max_results = 20L) {
   if (ont_arg != "ALL") {
     docs <- docs[!is.na(docs$ns) & docs$ns == ont_arg, , drop = FALSE]
     if (nrow(docs) == 0L)
-      return(sprintf(
-        "OLS4 found GO results for '%s' but none were in the '%s' namespace.",
-        query, ont_arg
-      ))
+      return(data.frame(ontology = character(), go_id = character(),
+                        term = character(), description = character(),
+                        stringsAsFactors = FALSE))
   }
 
-  total_hits <- result$response$numFound
   if (nrow(docs) > max_results) docs <- docs[seq_len(max_results), ]
 
   fmt_desc <- function(d) {
-    if (is.null(d) || (length(d) == 1L && is.na(d))) return("(no definition)")
+    if (is.null(d)) return(NA_character_)
+    if (length(d) == 1L && is.na(d[[1L]])) return(NA_character_)
     if (is.list(d)) d <- unlist(d)
-    substr(paste(d, collapse = " "), 1L, 140L)
+    paste(d, collapse = " ")
   }
 
-  lines <- vapply(seq_len(nrow(docs)), function(i) {
-    row  <- docs[i, ]
-    desc <- if ("description" %in% names(docs)) fmt_desc(docs$description[[i]])
-            else "(no definition)"
-    sprintf("[%s] %s (%s)\n  %s",
-            if (!is.na(row$ns)) row$ns else "?",
-            row$obo_id,
-            row$label %||% "unknown",
-            desc)
+  descriptions <- vapply(seq_len(nrow(docs)), function(i) {
+    if ("description" %in% names(docs)) fmt_desc(docs$description[[i]])
+    else NA_character_
   }, character(1L))
 
-  paste0(
-    sprintf("OLS4 GO search for '%s' (ontology=%s) — showing %d of %d total hits:\n\n",
-            query, ont_arg, nrow(docs), total_hits),
-    paste(lines, collapse = "\n\n")
+  data.frame(
+    ontology    = ifelse(is.na(docs$ns), NA_character_, docs$ns),
+    go_id       = docs$obo_id,
+    term        = ifelse(is.na(docs$label), NA_character_, docs$label),
+    description = descriptions,
+    stringsAsFactors = FALSE
   )
 }
 
@@ -178,7 +170,9 @@ tool_search_go_terms_ols <- ellmer::tool(
   "Search the EBI Ontology Lookup Service (OLS4) for GO terms matching a
    natural language description. Uses BM25 ranking with synonym expansion,
    handling paraphrased queries better than the local grep-based search.
-   Requires network access. Use search_go_terms() for offline keyword search.",
+   Requires network access. Returns a data frame with columns 'ontology',
+   'go_id', 'term', and 'description'. Use search_go_terms() for offline
+   keyword search.",
   query       = ellmer::type_string(
     "Natural language phrase, e.g. 'programmed cell death', 'chromatin remodeling',
      'response to oxidative stress', 'protein folding in ER'."
