@@ -138,8 +138,9 @@ fn_search_go_terms_ols <- function(query, ontology = "ALL", max_results = 20L) {
   if (nrow(docs) > max_results) docs <- docs[seq_len(max_results), ]
 
   fmt_desc <- function(d) {
-    if (is.null(d) || (length(d) == 1L && is.na(d))) return(NA_character_)
+    if (is.null(d)) return(NA_character_)
     if (is.list(d)) d <- unlist(d)
+    if (length(d) == 1L && is.na(d)) return(NA_character_)
     paste(d, collapse = " ")
   }
 

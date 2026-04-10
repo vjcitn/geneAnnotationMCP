@@ -171,8 +171,8 @@ fn_compare_gene_go <- function(gene_id_1, gene_id_2, ontology = "BP") {
   only2  <- setdiff(go2, go1)
 
   add_category <- function(df, cat) {
-    cbind(df, category = if (nrow(df) > 0L) cat else character(0L),
-          stringsAsFactors = FALSE)
+    df$category <- if (nrow(df) > 0L) cat else character(0L)
+    df
   }
 
   rbind(
