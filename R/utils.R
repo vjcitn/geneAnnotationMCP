@@ -28,6 +28,20 @@ NULL
   valid[[1L]]
 }
 
+# Look up GO IDs in GO.db and return a data.frame with go_id, term, ontology.
+# Returns an empty data.frame with those columns when ids is length 0.
+.lookup_go_terms <- function(ids) {
+  if (length(ids) == 0L)
+    return(data.frame(go_id = character(), term = character(),
+                      ontology = character(), stringsAsFactors = FALSE))
+  t <- suppressMessages(AnnotationDbi::select(
+    GO.db::GO.db, keys = ids,
+    columns = c("GOID", "TERM", "ONTOLOGY"), keytype = "GOID"
+  ))
+  data.frame(go_id = t$GOID, term = t$TERM, ontology = t$ONTOLOGY,
+             stringsAsFactors = FALSE)
+}
+
 
 #' Sanitize a scalar argument that an LLM may have JSON-array-wrapped.
 #' e.g. '["GO:0010464"]' -> "GO:0010464"

@@ -151,7 +151,7 @@ fn_search_go_terms_ols <- function(query, ontology = "ALL", max_results = 20L) {
   data.frame(
     ontology    = ifelse(is.na(docs$ns), NA_character_, docs$ns),
     go_id       = docs$obo_id,
-    term        = ifelse(is.null(docs$label) | is.na(docs$label), NA_character_, docs$label),
+    term        = ifelse(is.na(docs$label), NA_character_, docs$label),
     description = descriptions,
     stringsAsFactors = FALSE
   )

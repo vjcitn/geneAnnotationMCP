@@ -170,38 +170,15 @@ fn_compare_gene_go <- function(gene_id_1, gene_id_2, ontology = "BP") {
   only1  <- setdiff(go1, go2)
   only2  <- setdiff(go2, go1)
 
-  lookup_terms <- function(ids) {
-    if (length(ids) == 0L)
-      return(data.frame(go_id = character(), term = character(),
-                        ontology = character(), stringsAsFactors = FALSE))
-    t <- suppressMessages(AnnotationDbi::select(
-      GO.db::GO.db, keys = ids,
-      columns = c("GOID", "TERM", "ONTOLOGY"), keytype = "GOID"
-    ))
-    data.frame(go_id = t$GOID, term = t$TERM, ontology = t$ONTOLOGY,
-               stringsAsFactors = FALSE)
+  add_category <- function(df, cat) {
+    cbind(df, category = if (nrow(df) > 0L) cat else character(0L),
+          stringsAsFactors = FALSE)
   }
 
-  shared_df <- lookup_terms(shared)
-  only1_df  <- lookup_terms(only1)
-  only2_df  <- lookup_terms(only2)
-
   rbind(
-    if (nrow(shared_df) > 0L)
-      cbind(shared_df, category = "shared", stringsAsFactors = FALSE)
-    else
-      data.frame(go_id = character(), term = character(), ontology = character(),
-                 category = character(), stringsAsFactors = FALSE),
-    if (nrow(only1_df) > 0L)
-      cbind(only1_df, category = gene_id_1, stringsAsFactors = FALSE)
-    else
-      data.frame(go_id = character(), term = character(), ontology = character(),
-                 category = character(), stringsAsFactors = FALSE),
-    if (nrow(only2_df) > 0L)
-      cbind(only2_df, category = gene_id_2, stringsAsFactors = FALSE)
-    else
-      data.frame(go_id = character(), term = character(), ontology = character(),
-                 category = character(), stringsAsFactors = FALSE)
+    add_category(.lookup_go_terms(shared), "shared"),
+    add_category(.lookup_go_terms(only1),  gene_id_1),
+    add_category(.lookup_go_terms(only2),  gene_id_2)
   )
 }
 
